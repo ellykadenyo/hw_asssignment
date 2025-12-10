@@ -81,9 +81,9 @@ gaps AS (
     SELECT
         m.company_ein,
         m.plan_type,
-        DATE_ADD('day', 1, prev_end) as gap_start,
-        DATE_SUB('day', 1, curr_start) as gap_end,
-        DATE_DIFF('day', DATE_SUB('day', 1, curr_start), DATE_ADD('day', 1, prev_end) ) AS gap_length_days,
+        prev_end + INTERVAL '1 day' AS gap_start,
+        curr_start - INTERVAL '1 day' AS gap_end,
+        DATE_DIFF('day', curr_start - INTERVAL '1 day', prev_end + INTERVAL '1 day') AS gap_length_days,
         prev_carrier,
         next_carrier
     FROM (
@@ -117,7 +117,7 @@ ORDER BY company_name, gap_start
 
 try:
     conn.execute(plan_gaps_sql)
-    df = conn.fetchall_df()
+    df = conn.sql(plan_gaps_sql).df()
     df.to_csv(OUT / "sql_gaps.csv", index=False)
     print(f"Wrote {OUT / 'sql_gaps.csv'}")
 except Exception as e:
@@ -142,7 +142,7 @@ agg AS (
 flagged AS (
     SELECT DISTINCT
         company_name,
-        DATE_TRUNC('day', DATE_SUB('day', 89, service_date)) AS window_start,
+        DATE_TRUNC('day', service_date - INTERVAL '89 days') AS window_start,
         DATE_TRUNC('day', service_date) AS window_end,
         COALESCE(prev_90d_cost, 0) AS prev_90d_cost,
         COALESCE(current_90d_cost, 0) AS current_90d_cost,
@@ -164,7 +164,7 @@ ORDER BY company_name, window_start;
 """
 try:
     conn.execute(claims_spikes_sql)
-    df2 = conn.fetchall_df()
+    df2 = conn.sql(claims_spikes_sql).df()
     df2.to_csv(OUT / "sql_spikes.csv", index=False)
     print(f"Wrote {OUT / 'sql_spikes.csv'}")
 except Exception as e:
@@ -205,7 +205,7 @@ ORDER BY company_name;
 """
 try:
     conn.execute(roster_sql)
-    df3 = conn.fetchall_df()
+    df3 = conn.sql(roster_sql).df()
     df3.to_csv(OUT / "sql_roster.csv", index=False)
     print(f"Wrote {OUT / 'sql_roster.csv'}")
 except Exception as e:
