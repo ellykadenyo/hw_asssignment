@@ -1,7 +1,7 @@
 
 # DESIGN.md — System Design, Trade‑offs & Operational Thinking
 
-This document outlines the **architectural design**, **operational considerations**, and **scalability strategy** for the implemented solution, framed from a long‑term platform data engineering perspective.
+This document outlines the **architectural design**, **operational considerations**, and **scalability strategy** for the implemented solution, framed from a long‑term data engineering perspective.
 
 ---
 
@@ -136,4 +136,4 @@ In production:
 ## Closing Note
 
 This solution prioritizes **sound engineering judgment over exhaustiveness**.  
-The same patterns demonstrated here — observability, reproducibility, incrementalism, and clear trade‑off communication — scale directly to production‑grade data platforms.
+The same patterns demonstrated here — observability, reproducibility, incrementalism, and clear trade‑off communication — scale directly to production‑grade data platforms. Time-constraint was the main challenge considering the assignment scope.
