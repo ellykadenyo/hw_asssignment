@@ -1,4 +1,4 @@
-# Assignment: Data engineering take-home assignment(reproducible using docker)
+# Data engineering take-home assignment(reproducible using docker)
 
 This repository contains a reproducible solution for the take-home assignment. It runs SQL analyses (DuckDB) and a Python ETL pipeline and writes outputs into `outputs/`.
 
