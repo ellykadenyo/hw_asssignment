@@ -1,56 +1,139 @@
 
+# DESIGN.md — System Design, Trade‑offs & Operational Thinking
+
+This document outlines the **architectural design**, **operational considerations**, and **scalability strategy** for the implemented solution, framed from a long‑term platform data engineering perspective.
+
 ---
 
-### 12) `DESIGN.md`
-```markdown
-# DESIGN.md — dbt + debugging notes
+## 1. End‑to‑End Logical Design
 
-## 1) Staging → Intermediate → Fact models (5–7 bullets)
-1. **stg_employees**: Raw ingestion; parse dates, normalize columns, initial dedupe, parse notes into JSON columns.
-2. **stg_plans**: Raw plans; cast to dates, standardize carrier names, ensure interval validity.
-3. **stg_claims**: Raw claims; cast service_date, coerce amounts to numeric, flag outliers.
-4. **int_company**: Enriched company-level attributes: EIN, domain, enrichment fields (industry, revenue).
-5. **fct_employee_roster**: Aggregated active roster per company and period (use last_known flag).
-6. **fct_claims_rolling**: Pre-aggregated rolling windows (90-day) per company used for spike detection.
-7. **mart_plan_coverage**: Merged plan intervals normalized and merged per company/plan_type; gap detection model.
+```text
+Raw CSV / JSON
+      |
+      v
++------------------+
+|   Staging (SQL)  |
+|  • Type coercion |
+|  • Deduping      |
++------------------+
+      |
+      v
++---------------------------+
+| Intermediate Aggregation |
+| • Interval normalization |
+| • Rolling windows        |
+| • Company joins          |
++---------------------------+
+      |
+      v
++------------------+
+|   Fact / Marts   |
+| • Gaps           |
+| • Cost spikes    |
+| • Roster checks  |
++------------------+
+      |
+      v
+Outputs (CSV / Parquet)
+```
 
-## 2) Incremental merge logic
-- Use unique key per model (e.g., employee_id, company_ein + plan_type + interval_key).
-- For incremental loads, implement MERGE semantics:
-  - Insert new rows
-  - Update rows where updated_at > existing.updated_at
-  - Soft-delete via valid_until columns for historical records
-- Use dbt incremental materialization with `unique_key` and `is_incremental()` guard.
+This flow mirrors how the logic would be encoded in a modern warehouse/dbt‑based stack.
 
-## 3) Schema & column tests
-- Not null constraints on core ids (company_ein, employee_id)
-- Relationship tests: every claim.company_ein must exist in stg_company
-- Freshness tests on ingestion timestamps
-- Acceptable range tests for amounts (non-negative), rolling window results sanity checks
+---
 
-## 4) Freshness & anomaly checks
-- Set freshness window for ingestion tables (<= 24h)
-- Anomaly detection: sudden row count increases > 3x baseline triggers alert
-- Spike detection rule configured as an alertable dbt test (e.g., when pct_change > 300%)
+## 2. dbt‑Style Model Design (Conceptual)
 
-## 5) Metadata columns
-- `ingested_at`, `source_file`, `record_hash`, `inserted_at`, `updated_at`, `valid_from`, `valid_to`
+1. **stg_employees**  
+   - Raw ingestion, type normalization, email/domain parsing, light dedupe.
 
-## 6) Safe model deprecation strategy
-- Mark model as `deprecated` in catalog and add redirectors from model to new model
-- Keep deprecated materialization for X weeks (depending on SLA), with log of downstream dependencies using `dbt docs` and `dag` analysis.
+2. **stg_plans**  
+   - Plan interval validation, carrier normalization.
 
-## 7) Operational guardrails & monitoring
-- Enforce job runtime SLAs. If models increase runtime beyond thresholds, auto-scale compute or fail fast and raise incident.
-- Query-level timeouts, partition pruning, and clustering on date/company_ein for large feeds.
+3. **stg_claims**  
+   - Date coercion, numeric validation, outlier flagging.
 
-## 8) Debugging & incident response (30-minute plan)
-- **Triage (0-5m):** Check alert, gather basic metrics: ingestion rate, row counts, runtime changes, recent deploys.
-- **Isolate (5-15m):** Re-run failing model on small partition, profile queries (EXPLAIN), check cardinality explosion keys.
-- **Mitigate (15-30m):** Rollback recent data or model changes; disable suspect upstream feed ingestion; enact throttling or sampling.
-- **Follow-up:** Add regression tests, add more robust partitioning, and increase observability (profile dashboards, explain-as-code).
+4. **int_company_enriched**  
+   - EIN/domain resolution, enrichment attributes.
 
-## Likely causes for regression described
-- Key explosion due to new feed adding 20M rows/day -> joins that are not partitioned cause large cross joins.
-- Duplicate keys or missing dedupe leading to inflated downstream counts.
-- Freshness tests pass because they check ingestion time but not content correctness (needs delta checks).
+5. **fct_employee_roster**  
+   - Active employee counts per company.
+
+6. **fct_claims_rolling_90d**  
+   - Rolling 90‑day claim aggregates.
+
+7. **mart_plan_coverage_gaps**  
+   - Fully stitched plan intervals with explicit gap representation.
+
+---
+
+## 3. Incremental & State Management
+
+Current implementation:
+- Local high‑water‑mark store to demonstrate incremental thinking.
+
+In production:
+- Warehouse‑native MERGE semantics (`unique_key + updated_at`)
+- Partitioning by `company_ein` and event date
+- Idempotent backfills and reruns
+
+---
+
+## 4. What Has Been Accomplished
+
+- Reproducible Dockerized pipeline
+- SQL analytics with validated outputs
+- Data validation & error isolation
+- Local enrichment with caching & retries
+- Incremental processing pattern
+- Operational logging
+- Clear separation of concerns
+
+---
+
+## 5. What Could Be Polished With More Time
+
+- Full dbt project scaffolding and tests
+- CI pipeline for SQL + ETL validation
+- Warehouse‑scale benchmarking
+- Stronger anomaly detection beyond thresholds
+- Richer schema contracts and data expectations
+
+---
+
+## 6. Scaling the System
+
+### Data Volume
+- Partition & cluster by company and date
+- Pre‑aggregate rolling windows
+- Avoid fan‑out joins using surrogate keys
+
+### Compute
+- Separate ingestion, transformation, and serving layers
+- Autoscale warehouse compute based on SLA
+
+### Reliability
+- SLA‑aware freshness checks
+- Row‑count deltas and distribution drift monitoring
+- Defensive fail‑fast on anomalous volume changes
+
+---
+
+## 7. Incident Scenario (20M rows/day)
+
+**Likely causes**
+- Key explosion in joins
+- Missing dedupe with increased feed volume
+- Partition pruning regression
+
+**Response**
+1. Stop downstream propagation
+2. Profile cardinality and query plans
+3. Roll back models or limit ingestion
+4. Add regression and cost guardrails
+
+---
+
+## Closing Note
+
+This solution prioritizes **sound engineering judgment over exhaustiveness**.  
+The same patterns demonstrated here — observability, reproducibility, incrementalism, and clear trade‑off communication — scale directly to production‑grade data platforms.
