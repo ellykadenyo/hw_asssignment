@@ -70,7 +70,7 @@ def run_etl_pipeline(root: Path, company_lookup: dict, api_mock: dict, out_dir: 
     employees_valid['company_ein'] = employees_valid.apply(infer_ein, axis=1)
 
     # Carry forward titles where missing grouped by company + full_name (simple fill)
-    employees_valid['title'] = employees_valid['title'].fillna(method='ffill')
+    employees_valid['title'] = employees_valid['title'].ffill()
 
     # Extract simple structured info from notes (example: "mgr:Bob; team:Core")
     def parse_notes(notes):
