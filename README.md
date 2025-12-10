@@ -84,8 +84,16 @@ All logic runs locally without external dependencies, making the solution repeat
 ### Clone
 
 ```bash
-git clone <your-repo-url>
-cd <repo>
+git clone https://github.com/ellykadenyo/hw_asssignment.git
+cd hw_asssignment/
+```
+
+### Set file permissions and create logs directory
+
+```bash
+sed -i 's/\r$//' run_all.sh
+chmod +x run_all.sh
+mkdir logs
 ```
 
 ### Run End‑to‑End (Single Command)
@@ -134,6 +142,7 @@ Given additional time, these components would be extended for production (see DE
 
 - All dependencies are version‑pinned for deterministic builds.
 - Docker is the source of truth for runtime behavior.
+- All input files shared have been pushed to the git repo to make reproducibility easier.
 - Known Linux permission edge cases (`run_all.sh`) are documented and handled.
 
 ```bash
